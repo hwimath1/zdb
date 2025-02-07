@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>연립부등식의 풀이(1)</title>
+  <!-- MathJax 로드 -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
+  <style>
+    body {
+      background-color: #ffffff;
+      color: #000000;
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+      text-align: center;
+    }
+    /* 기본적으로 startScreen 등은 감춰두었다가, JS에서 표시 */
+    #startScreen, #quizScreen, #endScreen {
+      display: none;
+      margin: 20px auto;
+      width: 80%;
+      max-width: 800px;
+    }
+    #difficultySelect, #nameInput {
+      margin-bottom: 20px;
+    }
+    #energyBarContainer {
+      height: 10px;
+      width: 80%;
+      border: 1px solid #000000;
+      margin: 0 auto;
+      position: relative;
+      background: #ffffff;
+    }
+    #energyBar {
+      height: 100%;
+      width: 100%;
+      background: #000000;
+      transition: width 0.2s linear;
+    }
+    .questionBox {
+      text-align: left;
+      margin: 20px 0;
+      border: 1px solid #000000;
+      padding: 15px;
+    }
+    .choiceBox {
+      margin: 10px 0;
+      text-align: left;
+    }
+    button {
+      margin: 10px;
+      padding: 8px 16px;
+      cursor: pointer;
+      background: #ffffff;
+      color: #000000;
+      border: 1px solid #000000;
+    }
+    #response {
+      white-space: pre-wrap;
+      text-align: left;
+      margin: 10px 0;
+      font-size: 0.9em;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- 시작 화면 -->
+  <div id="startScreen">
+    <h1>연립부등식의 풀이(1)</h1>
+    <div style="display:inline-block;">
+      <input type="text" id="nameInput" placeholder="이름을 입력하세요" style="text-align:center;">
+    </div>
+    <div id="difficultySelect">
+      <p>난이도를 선택하세요</p>
+      <button onclick="selectDifficulty('최상')">최상 (20초)</button>
+      <button onclick="selectDifficulty('상')">상 (30초)</button>
+      <button onclick="selectDifficulty('중')">중 (40초)</button>
+      <button onclick="selectDifficulty('하')">하 (제한 없음)</button>
+    </div>
+  </div>
+
+  <!-- 문제 풀이 화면 -->
+  <div id="quizScreen">
+    <div>
+      <div>남은 기회: <span id="lifeCount">3</span></div>
+      <div>총 경과 시간: <span id="elapsedTime">0</span> 초</div>
+      <div>점수: <span id="currentScore">0</span></div>
+      <div id="energyBarContainer">
+        <div id="energyBar"></div>
+      </div>
+    </div>
+    <div class="questionBox" id="questionText"></div>
+    <div class="choiceBox">
+      <input type="radio" name="choice" id="choice0" value="0">
+      <label for="choice0" id="choice0Label"></label>
+      <br>
+      <input type="radio" name="choice" id="choice1" value="1">
+      <label for="choice1" id="choice1Label"></label>
+      <br>
+      <input type="radio" name="choice" id="choice2" value="2">
+      <label for="choice2" id="choice2Label"></label>
+      <br>
+      <input type="radio" name="choice" id="choice3" value="3">
+      <label for="choice3" id="choice3Label"></label>
+      <br>
+    </div>
+    <button onclick="submitAnswer()">확인</button>
+  </div>
+
+  <!-- 종료 화면 -->
+  <div id="endScreen">
+    <h2>게임 종료</h2>
+    <div>최종 점수: <span id="finalScore"></span></div>
+    <button onclick="sendScore()">점수 전송</button>
+    <div id="response"></div>
+  </div>
+
+  <script>
+    /************************************************************
+     *  문제/보기/정답 데이터 (문제 69는 제외)
+     ************************************************************/
+    const allQuestions = [
+      // 문제 8
+      {
+        question: "\\(2 \\le x \\le 4\\)일 때, \\(3x\\)의 값의 범위를 구하시오.",
+        choices: [
+          "\\(3 \\le 3x < 12\\)",
+          "\\(6 \\le 3x < 12\\)",
+          "\\(6 \\le 3x \\le 12\\)",
+          "\\(5 < 3x \\le 12\\)"
+        ],
+        correct: 2
+      },
+      // 문제 9
+      {
+        question: "\\(2 \\le x \\le 4\\)일 때, \\(x - 2\\)의 값의 범위를 구하시오.",
+        choices: [
+          "\\(0 \\le x - 2 \\le 2\\)",
+          "\\(1 \\le x - 2 \\le 2\\)",
+          "\\(0 < x - 2 < 3\\)",
+          "\\(-1 \\le x - 2 \\le 2\\)"
+        ],
+        correct: 0
+      },
+      // 문제 10
+      {
+        question: "\\(2 \\le x \\le 4\\)일 때, \\(-x\\)의 값의 범위를 구하시오.",
+        choices: [
+          "\\(-4 \\le -x < 0\\)",
+          "\\(-2 \\le -x \\le 2\\)",
+          "\\(-8 < -x < -2\\)",
+          "\\(-4 \\le -x \\le -2\\)"
+        ],
+        correct: 3
+      },
+      // 문제 11
+      {
+        question: "\\(2 \\le x \\le 4\\)일 때, \\(\\dfrac{1}{x}\\)의 값의 범위를 구하시오.",
+        choices: [
+          "\\(\\tfrac14 < \\tfrac1x \\le \\tfrac12\\)",
+          "\\(\\tfrac14 \\le \\tfrac1x \\le \\tfrac12\\)",
+          "\\(\\tfrac14 \\le \\tfrac1x < \\tfrac12\\)",
+          "\\(\\tfrac12 \\le \\tfrac1x \\le 1\\)"
+        ],
+        correct: 1
+      },
+      // 문제 16
+      {
+        question: "\\(-1 < x \\le 2\\)일 때, \\(5x\\)의 값의 범위를 구하시오.",
+        choices: [
+          "\\(-5 < 5x \\le 10\\)",
+          "\\(-5 \\le 5x < 10\\)",
+          "\\(-5 < 5x < 10\\)",
+          "\\(-5 \\le 5x \\le 10\\)"
+        ],
+        correct: 0
+      },
+      // 문제 17
+      {
+        question: "\\(-1 < x \\le 2\\)일 때, \\(x + 3\\)의 값의 범위를 구하시오.",
+        choices: [
+          "\\(2 < x + 3 \\le 6\\)",
+          "\\(2 < x + 3 \\le 5\\)",
+          "\\(2 \\le x + 3 \\le 5\\)",
+          "\\(2 < x + 3 < 5\\)"
+        ],
+        correct: 1
+      },
+      // 문제 18
+      {
+        question: "\\(-1 < x \\le 2\\)일 때, \\(-2x + 1\\)의 값의 범위를 구하시오.",
+        choices: [
+          "\\(-3 \\le -2x + 1 < 2\\)",
+          "\\(-3 < -2x + 1 < 3\\)",
+          "\\(-3 \\le -2x + 1 < 3\\)",
+          "\\(-3 < -2x + 1 \\le 3\\)"
+        ],
+        correct: 2
+      },
+      // 문제 19
+      {
+        question: "\\(-1 < x \\le 2\\)일 때, \\(\\dfrac{x + 2}{3}\\)의 값의 범위를 구하시오.",
+        choices: [
+          "0 < \\(\\dfrac{x + 2}{3}\\) \\(\\le\\) \\(\\tfrac43\\)",
+          "\\(\\tfrac13 \\le \\dfrac{x + 2}{3} \\le \\tfrac43\\)",
+          "\\(\\tfrac13 < \\dfrac{x + 2}{3} \\le \\tfrac32\\)",
+          "\\(\\tfrac13 < \\dfrac{x + 2}{3} \\le \\tfrac43\\)"
+        ],
+        correct: 3
+      },
+      // 문제 20
+      {
+        question: "\\(2 < x < 4,\\; 6 < y < 8\\)일 때, \\(x + y\\)의 값의 범위를 구하시오.",
+        choices: [
+          "\\(8 < x + y < 12\\)",
+          "\\(8 \\le x + y < 12\\)",
+          "\\(8 < x + y \\le 12\\)",
+          "\\(8 \\le x + y \\le 12\\)"
+        ],
+        correct: 0
+      },
+      // 문제 21
+      {
+        question: "\\(2 < x < 4,\\; 6 < y < 8\\)일 때, \\(xy\\)의 값의 범위를 구하시오.",
+        choices: [
+          "\\(12 < xy \\le 32\\)",
+          "\\(12 < xy < 32\\)",
+          "\\(12 \\le xy < 32\\)",
+          "\\(12 \\le xy \\le 32\\)"
+        ],
+        correct: 1
+      },
+      // 문제 22
+      {
+        question: "\\(2 < x < 4,\\; 6 < y < 8\\)일 때, \\(x - y\\)의 값의 범위를 구하시오.",
+        choices: [
+          "\\(-6 < x - y < -1\\)",
+          "\\(-6 \\le x - y < -2\\)",
+          "\\(-6 < x - y < -2\\)",
+          "\\(-5 < x - y < -2\\)"
+        ],
+        correct: 2
+      },
+      // 문제 23
+      {
+        question: "\\(2 < x < 4,\\; 6 < y < 8\\)일 때, \\(\\dfrac{x}{y}\\)의 값의 범위를 구하시오.",
+        choices: [
+          "\\(\\tfrac14 < \\dfrac{x}{y} < \\tfrac23\\)",
+          "\\(\\tfrac14 \\le \\dfrac{x}{y} < \\tfrac23\\)",
+          "\\(\\tfrac14 < \\dfrac{x}{y} < \\tfrac34\\)",
+          "\\(\\tfrac16 < \\dfrac{x}{y} < \\tfrac23\\)"
+        ],
+        correct: 0
+      },
+      // 문제 24
+      {
+        question: "\\(3 \\le x \\le 5,\\; 1 \\le y \\le 7\\)일 때, \\(x + y\\)의 값의 범위를 구하시오.",
+        choices: [
+          "4 < \\(x + y\\) < 12",
+          "\\(3 \\le x + y \\le 12\\)",
+          "\\(4 \\le x + y \\le 12\\)",
+          "\\(3 < x + y < 12\\)"
+        ],
+        correct: 2
+      },
+      // 문제 25
+      {
+        question: "\\(3 \\le x \\le 5,\\; 1 \\le y \\le 7\\)일 때, \\(x - y\\)의 값의 범위를 구하시오.",
+        choices: [
+          "\\(-4 \\le x - y \\le 4\\)",
+          "\\(-4 < x - y < 4\\)",
+          "\\(-5 \\le x - y \\le 4\\)",
+          "\\(-4 \\le x - y \\le 5\\)"
+        ],
+        correct: 0
+      },
+      // 문제 26
+      {
+        question: "\\(3 \\le x \\le 5,\\; 1 \\le y \\le 7\\)일 때, \\(xy\\)의 값의 범위를 구하시오.",
+        choices: [
+          "\\(3 \\le xy < 35\\)",
+          "\\(3 < xy \\le 35\\)",
+          "\\(3 \\le xy \\le 35\\)",
+          "\\(3 < xy < 35\\)"
+        ],
+        correct: 2
+      },
+      // 문제 27
+      {
+        question: "\\(3 \\le x \\le 5,\\; 1 \\le y \\le 7\\)일 때, \\(\\dfrac{x}{y}\\)의 값의 범위를 구하시오.",
+        choices: [
+          "\\(\\tfrac37 < \\dfrac{x}{y} < 5\\)",
+          "\\(\\tfrac37 \\le \\dfrac{x}{y} \\le 5\\)",
+          "\\(\\tfrac37 \\le \\dfrac{x}{y} \\le 7\\)",
+          "\\(\\tfrac37 < \\dfrac{x}{y} \\le 7\\)"
+        ],
+        correct: 1
+      },
+      // 문제 28
+      {
+        question: "부등식 \\(4(x-3) < 2x\\)를 풀어라.",
+        choices: [
+          "\\(x > 6\\)",
+          "\\(x \\ge 6\\)",
+          "\\(x \\le 6\\)",
+          "\\(x < 6\\)"
+        ],
+        correct: 3
+      },
+      // 문제 29
+      {
+        question: "부등식 \\(2(x-1) +1 < 5x + 8\\)을 풀어라.",
+        choices: [
+          "\\(x > -3\\)",
+          "\\(x \\ge -3\\)",
+          "\\(x < -3\\)",
+          "\\(x \\le -3\\)"
+        ],
+        correct: 0
+      },
+      // 문제 30
+      {
+        question: "부등식 \\(4(x-1) \\le -2(x-4)\\)를 풀어라.",
+        choices: [
+          "\\(x < 2\\)",
+          "\\(x > 2\\)",
+          "\\(x \\le 2\\)",
+          "\\(x \\ge 2\\)"
+        ],
+        correct: 2
+      },
+      // 문제 31
+      {
+        question: "부등식 \\(3x + 2 < 8\\)을 풀어라.",
+        choices: [
+          "\\(x \\le 2\\)",
+          "\\(x < 2\\)",
+          "\\(x > 2\\)",
+          "\\(x \\ge 2\\)"
+        ],
+        correct: 1
+      },
+      // 문제 32
+      {
+        question: "부등식 \\(3x - 2 > x + 4\\)를 풀어라.",
+        choices: [
+          "\\(x \\ge 3\\)",
+          "\\(x \\le 3\\)",
+          "\\(x > 3\\)",
+          "\\(x < 3\\)"
+        ],
+        correct: 2
+      },
+      // 문제 33
+      {
+        question: "부등식 \\(3(x-4) < x + 2\\)를 풀어라.",
+        choices: [
+          "\\(x < 7\\)",
+          "\\(x \\le 7\\)",
+          "\\(x > 7\\)",
+          "\\(x \\ge 7\\)"
+        ],
+        correct: 0
+      },
+      // 문제 41
+      {
+        question: "\\(a\\)가 실수일 때, \\(ax < a + 2\\)를 풀어라.",
+        choices: [
+          "\\(a>0\\)이면 \\(x < \\tfrac{2}{a}\\), \\(a<0\\)이면 \\(x > \\tfrac{2}{a}\\), \\(a=0\\)이면 해 없음",
+          "\\(a \\neq 0\\)이면 \\(x < 1 + \\tfrac{2}{a}\\), \\(a=0\\)이면 해 없음",
+          "\\(a>0\\)이면 \\(x < 1 + \\tfrac{2}{a}\\), \\(a<0\\)이면 \\(x > 1 + \\tfrac{2}{a}\\), \\(a=0\\)이면 모든 \\(x\\)가 해",
+          "\\(a>0\\)이면 \\(x \\le 1 + \\tfrac{2}{a}\\), \\(a<0\\)이면 \\(x \\ge 1 + \\tfrac{2}{a}\\), \\(a=0\\)이면 모든 \\(x\\)가 해"
+        ],
+        correct: 2
+      },
+      // 문제 42
+      {
+        question: "\\(a\\)가 실수일 때, \\(ax - 2 > 3x + a\\)를 풀어라.",
+        choices: [
+          "\\(a>3\\)이면 \\(x > \\dfrac{a+2}{a-3}\\), \\(a<3\\)이면 \\(x < \\dfrac{a+2}{a-3}\\), \\(a=3\\)이면 해 없음",
+          "\\(a>3\\)이면 \\(x < \\dfrac{a+2}{a-3}\\), \\(a<3\\)이면 \\(x > \\dfrac{a+2}{a-3}\\), \\(a=3\\)이면 해 없음",
+          "\\(a=3\\)이면 모든 \\(x\\), \\(a>3\\)이면 \\(x < 1\\), \\(a<3\\)이면 \\(x > -1\\)",
+          "\\(a>0\\)이면 \\(x < a+2\\), \\(a<0\\)이면 \\(x > a+2\\)"
+        ],
+        correct: 0
+      },
+      // 문제 43
+      {
+        question: "\\(a\\)가 실수일 때, \\(ax + 1 \\ge a^2 - x\\)를 풀어라.",
+        choices: [
+          "\\(a>-1\\)이면 \\(x \\le \\dfrac{a^2 -1}{a+1}\\), \\(a<-1\\)이면 \\(x \\ge \\dfrac{a^2 -1}{a+1}\\), \\(a=-1\\)이면 해 없음",
+          "\\(a>-1\\)이면 \\(x < \\dfrac{a^2 -1}{a+1}\\), \\(a<-1\\)이면 \\(x > \\dfrac{a^2 -1}{a+1}\\), \\(a=-1\\)이면 \\(x=0\\)",
+          "\\(a>-1\\)이면 \\(x = \\dfrac{a^2 -1}{a+1}\\), \\(a<-1\\)이면 해 없음, \\(a=-1\\)이면 모든 \\(x\\)",
+          "\\(a>-1\\)이면 \\(x \\ge \\dfrac{a^2 -1}{a+1}\\), \\(a<-1\\)이면 \\(x \\le \\dfrac{a^2 -1}{a+1}\\), \\(a=-1\\)이면 모든 \\(x\\)가 해"
+        ],
+        correct: 3
+      },
+      // 문제 44
+      {
+        question: "\\(a\\)가 실수일 때, \\(ax - a > 2x + 2\\)를 풀어라.",
+        choices: [
+          "\\(a>2\\)이면 \\(x < \\dfrac{a+2}{a-2}\\), \\(a<2\\)이면 \\(x > \\dfrac{a+2}{a-2}\\), \\(a=2\\)이면 해 무한",
+          "\\(a>2\\)이면 \\(x > \\dfrac{a+2}{a-2}\\), \\(a<2\\)이면 \\(x < \\dfrac{a+2}{a-2}\\), \\(a=2\\)이면 해 없음",
+          "\\(a>2\\)이면 \\(x < \\dfrac{a+2}{a-2}\\), \\(a<2\\)이면 \\(x > \\dfrac{a+2}{a-2}\\), \\(a=2\\)이면 \\(x=0\\)",
+          "\\(a=2\\)이면 모든 \\(x\\)"
+        ],
+        correct: 1
+      },
+      // 문제 45
+      {
+        question: "\\(a\\)가 실수일 때, \\(ax + 1 < x + a^2\\)를 풀어라.",
+        choices: [
+          "\\(a>1\\)이면 \\(x > \\dfrac{a^2 -1}{a-1}\\), \\(a<1\\)이면 \\(x < \\dfrac{a^2 -1}{a-1}\\), \\(a=1\\)이면 해 없음",
+          "\\(a>1\\)이면 \\(x < \\dfrac{a^2 -1}{a-1}\\), \\(a<1\\)이면 \\(x < \\dfrac{a^2 -1}{a-1}\\), \\(a=1\\)이면 무수히 많음",
+          "\\(a>1\\)이면 \\(x > \\dfrac{a^2 -1}{a-1}\\), \\(a<1\\)이면 \\(x > \\dfrac{a^2 -1}{a-1}\\), \\(a=1\\)이면 해 없음",
+          "\\(a>1\\)이면 \\(x < \\dfrac{a^2 -1}{a-1}\\), \\(a<1\\)이면 \\(x > \\dfrac{a^2 -1}{a-1}\\), \\(a=1\\)이면 해 없음"
+        ],
+        correct: 3
+      },
+      // 문제 46
+      {
+        question: "\\(a\\)가 실수일 때, \\(ax + 4 \\ge 2x + a^2\\)를 풀어라.",
+        choices: [
+          "\\(a>2\\)이면 \\(x \\ge \\dfrac{a^2 -4}{a-2}\\), \\(a<2\\)이면 \\(x \\le \\dfrac{a^2 -4}{a-2}\\), \\(a=2\\)이면 모든 \\(x\\)가 해",
+          "\\(a=2\\)이면 해 없음, 그 외 모든 \\(x\\)",
+          "\\(a>2\\)이면 \\(x > \\dfrac{a^2 -4}{a-2}\\), \\(a<2\\)이면 \\(x < \\dfrac{a^2 -4}{a-2}\\)",
+          "\\(a=0\\)이면 \\(x \\ge -4\\), 그 외 해 없음"
+        ],
+        correct: 0
+      },
+      // 문제 47
+      {
+        question: "\\(a\\)가 실수일 때, \\((a-1)x > a\\)를 풀어라.",
+        choices: [
+          "\\(a>1\\)이면 \\(x > a-1\\), \\(a<1\\)이면 \\(x < a-1\\), \\(a=1\\)이면 해 없음",
+          "\\(a>1\\)이면 \\(x < \\dfrac{a}{a-1}\\), \\(a<1\\)이면 \\(x > \\dfrac{a}{a-1}\\), \\(a=1\\)이면 해 없음",
+          "\\(a=1\\)이면 모든 \\(x\\), \\(a>1\\)이면 \\(x < \\dfrac{a}{a-1}\\), \\(a<1\\)이면 \\(x > \\dfrac{a}{a-1}\\)",
+          "\\(a>1\\)이면 \\(x > \\dfrac{a}{a-1}\\), \\(a<1\\)이면 \\(x < \\dfrac{a}{a-1}\\), \\(a=1\\)이면 해 없음"
+        ],
+        correct: 3
+      },
+      // 문제 48
+      {
+        question: "\\(a\\)가 실수일 때, \\(ax + 1 \\ge a + x\\)를 풀어라.",
+        choices: [
+          "\\(a>1\\)이면 \\(x \\ge 1\\), \\(a<1\\)이면 \\(x \\ge 1\\), \\(a=1\\)이면 해 없음",
+          "\\(a>1\\)이면 \\(x \\ge 1\\), \\(a<1\\)이면 \\(x \\le 1\\), \\(a=1\\)이면 모든 \\(x\\)가 해",
+          "\\(a>1\\)이면 \\(x > 1\\), \\(a<1\\)이면 \\(x < 1\\), \\(a=1\\)이면 해 없음",
+          "\\(a>1\\)이면 \\(x \\le 1\\), \\(a<1\\)이면 \\(x \\ge 1\\), \\(a=1\\)이면 모든 \\(x\\)가 해"
+        ],
+        correct: 1
+      },
+      // 문제 49
+      {
+        question: "\\(a\\)가 실수일 때, \\(ax + 2 \\le 2a^2 - x\\)를 풀어라.",
+        choices: [
+          "\\(a>-1\\)이면 \\(x \\ge 2\\cdot\\dfrac{a^2 -1}{a+1}\\), \\(a<-1\\)이면 \\(x \\le 2\\cdot\\dfrac{a^2 -1}{a+1}\\), \\(a=-1\\)이면 해 없음",
+          "\\(a>0\\)이면 \\(x \\le 2\\cdot\\dfrac{a^2 -1}{a+1}\\), \\(a<0\\)이면 \\(x \\ge 2\\cdot\\dfrac{a^2 -1}{a+1}\\), \\(a=-1\\)이면 모든 \\(x\\)",
+          "\\(a>-1\\)이면 \\(x \\le 2\\cdot\\dfrac{a^2 -1}{a+1}\\), \\(a<-1\\)이면 \\(x \\ge 2\\cdot\\dfrac{a^2 -1}{a+1}\\), \\(a=-1\\)이면 모든 \\(x\\)가 해",
+          "\\(a>-1\\)이면 \\(x=0\\), \\(a<-1\\)이면 해 없음, \\(a=-1\\)이면 모든 \\(x\\)"
+        ],
+        correct: 2
+      },
+      // 문제 66
+      {
+        question: "다음 연립부등식을 풀어라.\\n\\(\\dfrac13 x - 2 < \\tfrac12\\), \\(1.3x - 3.6 > 0.7x\\)",
+        choices: [
+          "\\(6 < x < 7.5\\)",
+          "\\(x < 6\\)",
+          "\\(6 \\le x \\le 7.5\\)",
+          "\\(x > 7.5\\)"
+        ],
+        correct: 0
+      },
+      // 문제 67
+      {
+        question: "다음 연립부등식을 풀어라.\\n\\(5(x+1) > x + 3\\), \\(x + 5 \\le 3(x - 1)\\)",
+        choices: [
+          "\\(x > -0.5\\)",
+          "\\(x \\ge -0.5\\)",
+          "\\(x \\ge 4\\)",
+          "\\(x > 4\\)"
+        ],
+        correct: 2
+      },
+      // 문제 68
+      {
+        question: "다음 연립부등식을 풀어라.\\n\\(2(x+1) \\le x + 5\\), \\(x - 2 \\ge \\tfrac13 x\\)",
+        choices: [
+          "\\(x < 3\\)",
+          "\\(x > 3\\)",
+          "해 없음",
+          "\\(x = 3\\)"
+        ],
+        correct: 3
+      },
+      // 문제 70
+      {
+        question: "다음 연립부등식을 풀어라.\\n\\(2(x-1) \\le 4\\), \\(10 - 3(x+2) < x\\)",
+        choices: [
+          "\\(1 < x \\le 3\\)",
+          "\\(x \\ge 1\\)",
+          "\\(x \\le 3\\)",
+          "해 없음"
+        ],
+        correct: 0
+      },
+      // 문제 71
+      {
+        question: "다음 연립부등식을 풀어라.\\n\\(3 - 2(3x+1) \\le 3x + 10\\), \\(x + 3 > 4(2 - x)\\)",
+        choices: [
+          "\\(x \\ge -1\\)",
+          "\\(x \\ge 1\\)",
+          "\\(x > -1\\)",
+          "\\(x > 1\\)"
+        ],
+        correct: 3
+      },
+      // 문제 72
+      {
+        question: "다음 연립부등식을 풀어라.\\n\\(\\tfrac13 x - 1 < \\tfrac14 x\\), \\(\\dfrac{x - 1}{7} < \\dfrac{x - 5}{3}\\)",
+        choices: [
+          "\\(x \\ge 8\\)",
+          "\\(8 < x < 12\\)",
+          "\\(8 \\le x < 12\\)",
+          "\\(x > 12\\)"
+        ],
+        correct: 1
+      },
+      // 문제 73
+      {
+        question: "다음 연립부등식을 풀어라.\\n\\(0.3x - 0.4 \\le 0.5x\\), \\(0.2x + 1 \\ge -0.1x + 0.7\\)",
+        choices: [
+          "\\(x \\ge -2\\)",
+          "\\(x \\ge 0\\)",
+          "\\(x \\ge -1\\)",
+          "해 없음"
+        ],
+        correct: 2
+      },
+      // 문제 74
+      {
+        question: "다음 연립부등식을 풀어라.\\n\\(0.6x - 1 \\le 0.4x + 1.6\\), \\(\\dfrac{2x + 1}{2} > \\dfrac{x - 2}{4} - 2\\)",
+        choices: [
+          "\\(-3 < x \\le 13\\)",
+          "\\(-4 < x \\le 13\\)",
+          "\\(x \\ge -4\\)",
+          "\\(x \\le 13\\)"
+        ],
+        correct: 1
+      },
+      // 문제 75
+      {
+        question: "다음 연립부등식을 풀어라.\\n\\(0.4(x+1) \\le 0.2(x+2)\\), \\(\\dfrac{x}{5} - \\dfrac{x+5}{4} < -1\\)",
+        choices: [
+          "\\(x \\ge -5\\)",
+          "\\(-5 \\le x \\le 0\\)",
+          "\\(-5 < x \\le 0\\)",
+          "\\(x \\le -5\\)"
+        ],
+        correct: 2
+      }
+    ];
+
+    // 전역 변수
+    let shuffledQuestions = [];
+    let currentIndex = 0;
+    let score = 0;
+    let lives = 3;
+    let totalElapsed = 0;   
+    let timer = null;       
+    let timeLimit = 0;      
+    let gameInterval = null;
+    let gameRunning = false;
+    let playerName = "";
+    let perQuestionScore = 0;
+    let energyTimer = null;
+
+    // 난이도 선택
+    function selectDifficulty(diff) {
+      playerName = document.getElementById("nameInput").value.trim();
+      if (!playerName) {
+        alert("이름을 입력하세요.");
+        return;
+      }
+      document.getElementById("startScreen").style.display = "none";
+      document.getElementById("quizScreen").style.display = "block";
+      gameRunning = true;
+
+      // 난이도별 시간제한
+      if (diff === "최상")      timeLimit = 20;
+      else if (diff === "상")  timeLimit = 30;
+      else if (diff === "중")  timeLimit = 40;
+      else                    timeLimit = 0; // 제한 없음
+
+      // 난이도별 점수
+      if (diff === "최상")      perQuestionScore = 20;
+      else if (diff === "상")  perQuestionScore = 15;
+      else if (diff === "중")  perQuestionScore = 13;
+      else                    perQuestionScore = 10;
+
+      // 문제 셔플
+      shuffledQuestions = [...allQuestions];
+      shuffleArray(shuffledQuestions);
+
+      currentIndex = 0;
+      score = 0;
+      lives = 3;
+      totalElapsed = 0;
+      document.getElementById("lifeCount").innerText = lives;
+      document.getElementById("currentScore").innerText = score;
+
+      // 전체 시간측정
+      if (gameInterval) clearInterval(gameInterval);
+      gameInterval = setInterval(() => {
+        if (gameRunning) {
+          totalElapsed++;
+          document.getElementById("elapsedTime").innerText = totalElapsed;
+        }
+      }, 1000);
+
+      startQuestion();
+    }
+
+    // 문제 보여주기
+    function startQuestion() {
+      if (currentIndex >= shuffledQuestions.length) {
+        endGame();
+        return;
+      }
+      const q = shuffledQuestions[currentIndex];
+
+      // 문제와 보기 표시
+      document.getElementById("questionText").innerText = q.question;
+      document.getElementById("choice0Label").innerText = q.choices[0];
+      document.getElementById("choice1Label").innerText = q.choices[1];
+      document.getElementById("choice2Label").innerText = q.choices[2];
+      document.getElementById("choice3Label").innerText = q.choices[3];
+      document.getElementById("choice0").checked = false;
+      document.getElementById("choice1").checked = false;
+      document.getElementById("choice2").checked = false;
+      document.getElementById("choice3").checked = false;
+
+      // 수식 렌더링
+      MathJax.typeset();
+
+      // 에너지바
+      if (energyTimer) clearInterval(energyTimer);
+      const energyBar = document.getElementById("energyBar");
+      energyBar.style.width = "100%";
+
+      let startTime = timeLimit;
+      if (timeLimit > 0) {
+        energyTimer = setInterval(() => {
+          if (!gameRunning) return;
+          startTime--;
+          const ratio = (startTime / timeLimit) * 100;
+          energyBar.style.width = ratio + "%";
+
+          if (startTime <= 0) {
+            clearInterval(energyTimer);
+            // 시간 초과 -> 기회 1 감소
+            lives--;
+            document.getElementById("lifeCount").innerText = lives;
+            alert("시간 초과입니다! 기회가 1 줄어듭니다.\n정답: " + q.choices[q.correct]);
+            if (lives <= 0) {
+              endGame();
+              return;
+            }
+            currentIndex++;
+            startQuestion();
+          }
+        }, 1000);
+      } else {
+        // 하 난이도(제한 없음) -> 에너지바 꽉 유지
+        energyBar.style.width = "100%";
+      }
+    }
+
+    // 답안 제출
+    function submitAnswer() {
+      if (!gameRunning) return;
+      const q = shuffledQuestions[currentIndex];
+      const choices = document.getElementsByName("choice");
+      let selected = -1;
+      for (let i = 0; i < choices.length; i++) {
+        if (choices[i].checked) {
+          selected = parseInt(choices[i].value, 10);
+          break;
+        }
+      }
+      if (selected === -1) {
+        alert("답을 선택하세요!");
+        return;
+      }
+
+      if (energyTimer) clearInterval(energyTimer);
+
+      // 정답 확인
+      if (selected === q.correct) {
+        score += perQuestionScore;
+        document.getElementById("currentScore").innerText = score;
+        alert("정답입니다!");
+      } else {
+        lives--;
+        document.getElementById("lifeCount").innerText = lives;
+        alert("틀렸습니다!\n정답: " + q.choices[q.correct]);
+        if (lives <= 0) {
+          endGame();
+          return;
+        }
+      }
+
+      currentIndex++;
+      if (currentIndex < shuffledQuestions.length) {
+        startQuestion();
+      } else {
+        endGame();
+      }
+    }
+
+    // 게임 종료
+    function endGame() {
+      gameRunning = false;
+      if (energyTimer) clearInterval(energyTimer);
+      if (gameInterval) clearInterval(gameInterval);
+
+      document.getElementById("quizScreen").style.display = "none";
+      document.getElementById("endScreen").style.display = "block";
+      document.getElementById("finalScore").innerText = score;
+    }
+
+    // 배열 셔플
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+
+    // 점수 전송
+    function sendScore() {
+      saveData("연립부등식의 풀이(1)", playerName, score, totalElapsed);
+    }
+
+    // 서버 전송 로직
+    function saveData(game, name, score, elapsedTime) {
+      const FUNCTION_URL = "https://us-central1-record-f420d.cloudfunctions.net/report";
+      const requestData = {
+        game,
+        name,
+        score: parseInt(score, 10),
+        elapsedTime: parseInt(elapsedTime, 10)
+      };
+
+      fetch(FUNCTION_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+      })
+      .then(async (response) => {
+        const responseData = await response.json();
+        if (response.ok) {
+          document.getElementById('response').innerText =
+            "성공: " + JSON.stringify(responseData, null, 2);
+        } else {
+          document.getElementById('response').innerText =
+            "오류: " + JSON.stringify(responseData, null, 2);
+        }
+      })
+      .catch((error) => {
+        console.error('요청 실패:', error);
+        document.getElementById('response').innerText =
+          "네트워크 오류: " + error.message;
+      });
+    }
+
+    // DOM 로드 완료 시, 첫 화면(#startScreen) 표시
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById("startScreen").style.display = "block";
+    });
+  </script>
+
+</body>
+</html>
